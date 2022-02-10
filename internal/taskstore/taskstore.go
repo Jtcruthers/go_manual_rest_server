@@ -77,7 +77,21 @@ func (ts *TaskStore) GetAllTasks() []Task {
   return allTasks
 }
 
-//func (ts *TaskStore) GetTasksByTag(tag string) []Task
+func (ts *TaskStore) GetTasksByTag(tag string) []Task {
+  var tasks []Task
+
+  iterate_tasks: // Needs to be named so we can continue if task has appropriate tag
+  for _, task := range ts.tasks {
+    for _, tagFromTag  := range task.Tags {
+      if tag == tagFromTag {
+        tasks = append(tasks, task) 
+        continue iterate_tasks
+      }
+    }
+  }
+
+  return tasks
+}
 
 //func (ts *TaskStore) GetTasksByDueDate(year int, month time.Month, day int) []Task
 

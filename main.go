@@ -120,11 +120,48 @@ func (ts *taskServer) createTaskHandler(w http.ResponseWriter, req *http.Request
   ts.store.CreateTask(text, tags, due)
 }
 
+func (ts *taskServer) getTasksByTagHandler(w http.ResponseWriter, req *http.Request, tag string) {
+  log.Printf("handling get tasks by tag at %s\n", req.URL.Path)
+
+  tasks := ts.store.GetTasksByTag(tag)
+  js, err := json.Marshal(tasks)
+  if err != nil {
+    http.Error(w, err.Error(), http.StatusInternalServerError)
+    return
+  }
+
+  w.Header().Set("Content-Type", "application/json")
+  w.Write(js)
+}
+
+func (ts *taskServer) tagHandler(w http.ResponseWriter, req *http.Request) {
+	if req.URL.Path == "/tag/" {
+      http.Error(w, "expect /tag/<tagname>, got /tag/", http.StatusBadRequest)
+      return
+	} else {
+      path := strings.Trim(req.URL.Path, "/")
+      pathParts := strings.Split(path, "/")
+      if len(pathParts) < 2 {
+        http.Error(w, "expect only /tag/<tagname> in task handler", http.StatusBadRequest)
+        return
+      }
+
+      tag := pathParts[1]
+
+      if req.Method == http.MethodGet {
+        ts.getTasksByTagHandler(w, req, tag)
+      } else {
+        http.Error(w, fmt.Sprintf("expect method GET at /tag/<tagname>, got %v", req.Method), http.StatusMethodNotAllowed)
+        return
+      }
+    }
+}
+
 func main() {
     server := NewTaskServer()
     mux := http.NewServeMux()
     mux.HandleFunc("/task/", server.taskHandler)
-    //mux.HandleFunc("/tag/", server.tagHandler)
+    mux.HandleFunc("/tag/", server.tagHandler)
     //mux.HandleFunc("/due/", server.dueHandler)
 
     log.Fatal(http.ListenAndServe("localhost:4000", mux))
