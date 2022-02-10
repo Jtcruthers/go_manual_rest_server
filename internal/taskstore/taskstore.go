@@ -1,11 +1,8 @@
 package taskstore
 
 import (
-    "http"
-    "json"
-    "log"
-    "strings"
-    "time"
+  "fmt"
+  "time"
 )
 
 type Task struct {
@@ -15,96 +12,72 @@ type Task struct {
   Due  time.Time `json:"due"`
 }
 
-type taskServer struct {
-    store *taskstore.TaskStore
+type TaskStore struct {
+  tasks map[int]Task
+  nextId int
 }
 
-func New() *TaskStore
+func New() *TaskStore {
+  ts := &TaskStore{}
+  ts.tasks = make(map[int]Task)
+  ts.nextId = 0
 
-func (ts *TaskStore) CreateTask(text string, tags []string, due time.Time) int
-
-func (ts *TaskStore) GetTask(id int) (Task, error)
-
-func (ts *TaskStore) DeleteTask(id int) error
-
-func (ts *TaskStore) DeleteAllTasks() error
-
-func (ts *TaskStore) GetAllTasks() []Task
-
-func (ts *TaskStore) GetTasksByTag(tag string) []Task
-
-func (ts *TaskStore) GetTasksByDueDate(year int, month time.Month, day int) []Task
-
-func NewTaskServer() *taskServer {
-    store := taskstore.New()
-    return &taskServer{store: store}
+  return ts
 }
 
-func (ts *taskServer) taskHandler(w http.ResponseWriter, req *http.Request) {
-	if req.URL.Path == "/task/" {
-		if req.Method == http.MethodPost {
-			ts.createTaskHandler(w, req)
-		} else if req.Method == http.MethodGet {
-			ts.getAllTasksHandler(w, req)
-		} else if req.Method == http.MethodDelete {
-			ts.deleteAllTasksHandler(w, req)
-		} else {
-			http.Error(w, fmt.Sprintf("expect method GET, DELETE, or POST at /task/, got %v", req.Method), http.StatusMethodNotAllowed)
-			return
-		}
-	} else {
-      path := strings.Trim(req.URL.Path, "/")
-      pathParts := strings.Split(path, "/")
-      if len(pathParts) < 2 {
-        http.Error(w, "expect /task/<id> in task handler", http.StatusBadRequest)
-        return
-      }
-
-      id, err := strconv.Atoi(pathParts[1])
-      if err != nil {
-        http.Error(w, err.Error(), http.StatusBadRequest)
-        return
-      }
-
-      if req.Method == http.MethodDelete {
-        ts.deleteTaskHandler(w, req, int(id))
-      } else if req.Method == http.MethodGet {
-        ts.getTaskHandler(w, req, int(id))
-      } else {
-        http.Error(w, fmt.Sprintf("expect method GET or DELETE at /task/<id>, got %v", req.Method), http.StatusMethodNotAllowed)
-        return
-      }
-    }
-}
-
-func (ts *taskServer) getAllTasksHandler(w http.ResponseWriter, req *http.Request) {  	
-  log.Printf("handling get all tasks at %s\n", req.URL.Path)
-
-  allTasks := ts.store.GetAllTasks()
-  js, err := json.Marshal(allTasks)
-  if err !=  nil {
-    http.Error(w, err.Error(), http.StatusInternalServerError)
-    return
+func (ts *TaskStore) CreateTask(text string, tags []string, due time.Time) int  {
+  task := Task{
+    Id: ts.nextId,
+    Text: text,
+    Due: due,
+    Tags: tags,
   }
 
-  w.Header().Set("Content-Type", "application/json")
-  w.Write(js)
+  ts.tasks[ts.nextId] = task
+  ts.nextId++
+
+  return task.Id
 }
 
-func (ts *taskServer) deleteAllTasksHandler(w http.ResponseWriter, req *http.Request) {
-  log.Printf("handling delete all tasks at %s\n", req.URL.Path)
+func (ts *TaskStore) GetTask(id int) (Task, error) {
+  task, ok := ts.tasks[id]
 
-  err := ts.store.DeleteAllTasks()
-  if err !=  nil {
-    http.Error(w, err.Error(), http.StatusInternalServerError)
-    return
+  if ok {
+    return task, nil
   }
+
+  return Task{}, fmt.Errorf("task with id=%d not found", id)
 }
 
-func main() {
-    server := NewTaskServer()
-    mux := http.NewServeMux()
-    mux.HandleFunc("/task/", server.taskHandler)
+func (ts *TaskStore) DeleteTask(id int) error {
+  _, ok := ts.tasks[id]
 
-    log.Fatal(http.ListenAndServe("localhost:4000", mux))
+  if !ok {
+    return fmt.Errorf("task with id=%d not found for deletion", id)
+  }
+
+  delete(ts.tasks, id)
+  return nil
 }
+
+func (ts *TaskStore) DeleteAllTasks() error {
+  ts.tasks = make(map[int]Task)   
+  ts.nextId = 0
+
+  return nil
+}
+
+func (ts *TaskStore) GetAllTasks() []Task {
+  allTasks := make([]Task, 0, len(ts.tasks))
+
+  for _, task := range ts.tasks {
+    allTasks = append(allTasks, task)
+  }
+
+  return allTasks
+}
+
+//func (ts *TaskStore) GetTasksByTag(tag string) []Task
+
+//func (ts *TaskStore) GetTasksByDueDate(year int, month time.Month, day int) []Task
+
