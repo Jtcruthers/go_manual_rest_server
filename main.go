@@ -111,13 +111,39 @@ func (ts *taskServer) deleteTaskHandler(w http.ResponseWriter, req *http.Request
   }
 }
 
+type CreateTaskRequest struct {
+  Text string
+  Tags []string
+  Due time.Time
+}
+
+type TaskIdResponse struct {
+  Id int
+}
+
 func (ts *taskServer) createTaskHandler(w http.ResponseWriter, req *http.Request) {
   log.Printf("handling create task at %s\n", req.URL.Path)
   
-  text := "Hey" // TODO - fix
-  tags := []string{"tag1", "tag2"}
-  due := time.Now()
-  ts.store.CreateTask(text, tags, due)
+  var createTask CreateTaskRequest
+  err := json.NewDecoder(req.Body).Decode(&createTask)
+  if err != nil {
+    http.Error(w, err.Error(), http.StatusInternalServerError)
+    return
+  }
+
+  log.Println(time.Now())
+  id := ts.store.CreateTask(createTask.Text, createTask.Tags, createTask.Due)
+
+  res := TaskIdResponse{Id: id}
+  js, err := json.Marshal(res)
+
+  if err != nil {
+    http.Error(w, err.Error(), http.StatusInternalServerError)
+    return
+  }
+
+  w.Header().Set("Content-Type", "application/json")
+  w.Write(js)
 }
 
 func (ts *taskServer) getTasksByTagHandler(w http.ResponseWriter, req *http.Request, tag string) {
@@ -162,7 +188,6 @@ func main() {
     mux := http.NewServeMux()
     mux.HandleFunc("/task/", server.taskHandler)
     mux.HandleFunc("/tag/", server.tagHandler)
-    //mux.HandleFunc("/due/", server.dueHandler)
 
     log.Fatal(http.ListenAndServe("localhost:4000", mux))
 }
